@@ -1,0 +1,8 @@
+{
+  "version": "1.0.0",
+  "hash": "<sha256-hex-of-firmware.bin>",
+  "signature": "<base64-encoded-rsa-or-ecdsa-signature>",
+  "binary_url": "http://localhost:5000/firmware/firmware.bin",
+  "signed_at": "2026-06-05T00:00:00Z",
+  "algorithm": "RSA-2048-SHA256"
+}
