@@ -1,0 +1,32 @@
+# CI/CD Pipeline — Secure OTA Firmware Signing
+# Owner: Jagadesh (Backend / DevOps)
+# Status: PLACEHOLDER — Full implementation due Week 2
+
+name: Sign and Release Firmware
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'   # Triggers on version tags like v1.0.0
+
+jobs:
+  sign-firmware:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # Week 2 (Jagadesh) will add:
+      # - Load PRIVATE_KEY from GitHub Secrets
+      # - Hash firmware.bin with SHA-256 (Sourish's script)
+      # - Sign hash with private key
+      # - Bundle firmware.bin + .sig + metadata.json
+      # - Upload bundle to distribution server
+
+      - name: Placeholder
+        run: echo "Full pipeline coming in Week 2 — Jagadesh"
