@@ -8,6 +8,13 @@ private_key*
 *.pfx
 *.pkcs12
 
+# Allow public keys that are safe to commit
+!crypto/public_key.pem
+!crypto/ecdsa_public.pem
+
+# Ignore private key directory
+keys/
+
 # Signature files (auto-generated)
 *.sig
 
