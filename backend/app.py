@@ -3,6 +3,8 @@ from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 import hashlib
 import os
+import json
+from datetime import datetime
 app = Flask(__name__)
 
 API_KEY = "infotact-secret-key"
@@ -15,6 +17,8 @@ limiter = Limiter(
 
 UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), "uploads")
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+REGISTRY_FILE = os.path.join(os.path.dirname(__file__), 
+"firmware_registry.json")
 
 def verify_api_key():
     api_key = request.headers.get("X-API-KEY")
@@ -29,10 +33,61 @@ def calculate_sha256(filepath):
             sha256.update(chunk)
 
     return sha256.hexdigest()
+def update_registry(filename, sha256_hash):
+    with open(REGISTRY_FILE, "r") as f:
+        registry = json.load(f)
+
+    version = f"1.0.{registry['total_releases'] + 1}"
+
+    entry = {
+        "version": version,
+        "filename": filename,
+        "sha256": sha256_hash,
+        "upload_timestamp": datetime.utcnow().isoformat(),
+        "is_latest": True
+    }
+
+    for v in registry["versions"]:
+        v["is_latest"] = False
+
+    registry["versions"].append(entry)
+    registry["latest_version"] = version
+    registry["total_releases"] += 1
+
+    with open(REGISTRY_FILE, "w") as f:
+        json.dump(registry, f, indent=4)
+
 @app.route("/")
 def home():
     return jsonify({
         "message": "OTA Mock Server Running"
+    })
+@app.route("/manifest.json")
+def manifest():
+
+    with open(REGISTRY_FILE, "r") as f:
+        registry = json.load(f)
+
+    return jsonify({
+        "manifest_version": "1.0",
+        "generated_at": datetime.utcnow().isoformat(),
+        "latest_version": registry["latest_version"],
+        "total_releases": registry["total_releases"]
+    })
+@app.route("/version/check")
+def version_check():
+
+    current_version = request.args.get("current", "0.0.0")
+
+    with open(REGISTRY_FILE, "r") as f:
+        registry = json.load(f)
+
+    latest_version = registry["latest_version"]
+
+    return jsonify({
+        "update_available": current_version != latest_version,
+        "current_version": current_version,
+        "latest_version": latest_version
     })
 
 @app.route("/upload", methods=["POST"])
@@ -42,6 +97,10 @@ def upload_file():
 
     file = request.files["file"]
     file.save(os.path.join(UPLOAD_FOLDER, file.filename))
+
+    filepath = os.path.join(UPLOAD_FOLDER, file.filename)
+    sha256_hash = calculate_sha256(filepath)
+    update_registry(file.filename, sha256_hash)
 
     return jsonify({
         "status": "success",
