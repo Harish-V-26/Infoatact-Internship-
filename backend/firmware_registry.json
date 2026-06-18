@@ -1,0 +1,13 @@
+{
+    "versions": [
+        {
+            "version": "1.0.1",
+            "filename": "test.txt",
+            "sha256": "b3ec909338e736ee271ef7d35d2f635e38e0fa21fb5e961da8ad151a4b77a770",
+            "upload_timestamp": "2026-06-18T14:21:29.406082",
+            "is_latest": true
+        }
+    ],
+    "latest_version": "1.0.1",
+    "total_releases": 1
+}
