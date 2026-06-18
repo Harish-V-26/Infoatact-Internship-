@@ -5,6 +5,9 @@ import hashlib
 import os
 import json
 from datetime import datetime
+from server.auth import require_auth
+from server.rate_limiter import rate_limit
+from server.logger import log_request
 app = Flask(__name__)
 
 API_KEY = "infotact-secret-key"
@@ -91,6 +94,8 @@ def version_check():
     })
 
 @app.route("/upload", methods=["POST"])
+@require_auth
+@rate_limit
 def upload_file():
     if "file" not in request.files:
         return jsonify({"error": "No file uploaded"}), 400
@@ -101,6 +106,12 @@ def upload_file():
     filepath = os.path.join(UPLOAD_FOLDER, file.filename)
     sha256_hash = calculate_sha256(filepath)
     update_registry(file.filename, sha256_hash)
+    log_request({
+    "endpoint": "/upload",
+    "method": "POST",
+    "status_code": 200,
+    "filename": file.filename
+})
 
     return jsonify({
         "status": "success",
@@ -108,13 +119,16 @@ def upload_file():
     })
 
 @app.route("/download/<filename>")
-@limiter.limit("5 per minute")
+@require_auth
+@rate_limit
 def download_file(filename):
 
-    if not verify_api_key():
-        return jsonify({
-            "error": "Unauthorized"
-        }), 401
+    log_request({
+    "endpoint": "/download",
+    "method": "GET",
+    "status_code": 200,
+    "filename": filename
+})
 
     return send_from_directory(
         UPLOAD_FOLDER,
