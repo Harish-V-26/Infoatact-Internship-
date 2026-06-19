@@ -1,11 +1,5 @@
-# Week 1 — Dummy Firmware Generator
-# Owner: Rishi (Edge Agent / QA)
-# Branch: rishi-edge
-# Creates a dummy .bin firmware file for testing the signing pipeline
-
 import struct
 import os
-
 
 def create_dummy_firmware(output_path="edge-agent/dummy_firmware.bin", version="1.0.0"):
     """
