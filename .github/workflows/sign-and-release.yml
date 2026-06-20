@@ -1,32 +1,69 @@
-# CI/CD Pipeline — Secure OTA Firmware Signing
-# Owner: Jagadesh (Backend / DevOps)
-# Status: PLACEHOLDER — Full implementation due Week 2
-
 name: Sign and Release Firmware
 
 on:
   push:
     tags:
-      - 'v*.*.*'   # Triggers on version tags like v1.0.0
+      - 'v*.*.*'
 
 jobs:
-  sign-firmware:
+  validate:
+    name: Job 1 - Validate and Secret Scan
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+      - run: pip install flake8
+      - run: python .github/scripts/secret_scanner.py
+      - run: flake8 . --max-line-length=120 --exclude=.git,__pycache__
 
-      # Week 2 (Jagadesh) will add:
-      # - Load PRIVATE_KEY from GitHub Secrets
-      # - Hash firmware.bin with SHA-256 (Sourish's script)
-      # - Sign hash with private key
-      # - Bundle firmware.bin + .sig + metadata.json
-      # - Upload bundle to distribution server
+  sign:
+    name: Job 2 - Hash and Sign Firmware
+    runs-on: ubuntu-latest
+    needs: validate
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install cryptography
+      - run: python crypto/hasher.py -f edge-agent/dummy_firmware.bin -o firmware.hash
+      - name: Sign firmware
+        env:
+          PRIVATE_KEY: ${{ secrets.PRIVATE_KEY }}
+        run: |
+          echo "$PRIVATE_KEY" > /tmp/pk.pem
+          python edge-agent/sign_helper.py -k /tmp/pk.pem --hash $(cat firmware.hash) -o firmware.sig
+          rm -f /tmp/pk.pem
+      - uses: actions/upload-artifact@v4
+        with:
+          name: signed-bundle
+          path: |
+            edge-agent/dummy_firmware.bin
+            firmware.hash
+            firmware.sig
 
-      - name: Placeholder
-        run: echo "Full pipeline coming in Week 2 — Jagadesh"
+  distribute:
+    name: Job 3 - Bundle and Distribute
+    runs-on: ubuntu-latest
+    needs: sign
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: signed-bundle
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Bundle
+        run: |
+          mkdir -p bundle
+          cp dummy_firmware.bin bundle/ 2>/dev/null || true
+          cp firmware.sig bundle/
+          cp firmware.hash bundle/
+      - run: python .github/scripts/write_audit.py --version "${{ github.ref_name }}" --run-id "${{ github.run_id }}" --hash-file firmware.hash
+      - uses: actions/upload-artifact@v4
+        with:
+          name: firmware-release-${{ github.ref_name }}
+          path: bundle/
