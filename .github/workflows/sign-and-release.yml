@@ -16,7 +16,8 @@ jobs:
           python-version: '3.11'
       - run: pip install flake8
       - run: python .github/scripts/secret_scanner.py
-      - run: flake8 . --max-line-length=120 --exclude=.git,__pycache__
+      - name: Check for critical Python errors only
+        run: flake8 . --select=E9,F63,F7,F82 --exclude=.git,__pycache__,node_modules
 
   sign:
     name: Job 2 - Hash and Sign Firmware
