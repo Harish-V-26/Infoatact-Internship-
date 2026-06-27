@@ -17,6 +17,10 @@ keys/
 
 # Signature files (auto-generated)
 *.sig
+*.sig.json
+
+# Test files
+test_engine.py
 
 # Python
 __pycache__/

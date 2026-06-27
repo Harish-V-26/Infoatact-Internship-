@@ -1,6 +1,7 @@
 import hashlib
 import sys
 
+
 def calculate_sha256(file_path):
     sha256 = hashlib.sha256()
 
@@ -11,11 +12,23 @@ def calculate_sha256(file_path):
     return sha256.hexdigest()
 
 
-if len(sys.argv) != 2:
-    print("Usage: py sha256_hash.py <file>")
-    exit()
+if __name__ == "__main__":
+    if len(sys.argv) != 2:
+        print("Usage: py sha256_hash.py <file>")
+        sys.exit(1)
 
-hash_value = calculate_sha256(sys.argv[1])
+    file_path = sys.argv[1]
 
-print("SHA-256 Hash:")
-print(hash_value)
+    try:
+        hash_value = calculate_sha256(file_path)
+
+        print("SHA-256 Hash:")
+        print(hash_value)
+
+    except FileNotFoundError:
+        print(f"Error: File '{file_path}' not found.")
+        sys.exit(1)
+
+    except Exception as e:
+        print(f"Error: {e}")
+        sys.exit(1)
