@@ -1,91 +1,183 @@
+"""
+Edge Agent - Real State Machine
+Owner: Rishi (Edge Agent / QA)
+
+Connects to the REAL OTA server (server/app.py) and uses the REAL
+CryptoEngine (crypto/engine.py) for signature verification.
+No more mocked manifest or fake hash-only checks.
+
+States: IDLE -> POLLING -> DOWNLOADING -> VERIFYING -> APPLYING -> IDLE/FAULT
+
+Run with: python edge-agent/agent.py
+Requires: server/app.py running on http://localhost:5000
+          pip install requests cryptography
+"""
+
+import os
+import sys
 import time
 import json
 import hashlib
+import requests
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "crypto"))
+
+from engine import CryptoEngine  # noqa: E402
+from incident_logger import log_incident  # noqa: E402
+
+SERVER_URL = "http://localhost:5000"
+PUBLIC_KEY_PATH = os.path.join(os.path.dirname(__file__), "..", "crypto", "public_key.pem")
+STATE_FILE = os.path.join(os.path.dirname(__file__), "state.json")
+DOWNLOAD_DIR = os.path.join(os.path.dirname(__file__), "downloads")
+CHUNK_SIZE = 4096
+
+os.makedirs(DOWNLOAD_DIR, exist_ok=True)
+
 
 class EdgeAgent:
-    def __init__(self):
-        # Module 1: State Machine Initialization
+    def __init__(self, current_version="0.0.0"):
         self.state = "IDLE"
         self.manifest = None
-        print(f"[STATE] Agent started in status: {self.state}")
+        self.current_version = current_version
+        self._save_state()
+        print(f"[STATE] Agent started. Current version: {self.current_version}")
+
+    def _save_state(self):
+        with open(STATE_FILE, "w") as f:
+            json.dump({
+                "current_state": self.state,
+                "firmware_version": self.current_version
+            }, f, indent=2)
 
     def change_state(self, new_state):
-        print(f"\n[STATE TRANSITION] {self.state} ──> {new_state}")
+        print(f"\n[STATE TRANSITION] {self.state} --> {new_state}")
         self.state = new_state
+        self._save_state()
 
-    # Module 2: Manifest Poller
+    # ── Module 1: Real Manifest Poller ──────────────────────────
     def poll_manifest(self):
         self.change_state("POLLING")
-        print("[POLLER] Checking secure server for new firmware updates...")
-        time.sleep(1.5)  # Simulating network latency
-        
-        # Simulating an update manifest JSON payload received from a server
-        mock_server_manifest = {
-            "version": "2.0.0",
-            "firmware_size_bytes": 120,
-            "chunk_size_bytes": 32,
-            "payload_data": "CRITICAL_UPDATE_DATA_PACKET_ABC_XYZ_SECURITY_PATCH_999_DUMMY_FIRMWARE_COMPLETED_SUCCESSFULLY_END",
-            "expected_sha256": "" 
-        }
-        
-        # Pre-calculating the correct hash of the payload for verification safety
-        payload_bytes = mock_server_manifest["payload_data"].encode()
-        mock_server_manifest["expected_sha256"] = hashlib.sha256(payload_bytes).hexdigest()
-        
-        self.manifest = mock_server_manifest
-        print(f"[POLLER] New update manifest found! Target Version: {self.manifest['version']}")
-        print(f"[POLLER] Manifest Content: {json.dumps(self.manifest, indent=2)}")
+        print(f"[POLLER] Checking {SERVER_URL}/manifest.json for updates...")
 
-    # Module 3: Chunked Secure Downloader
-    def download_firmware_chunked(self):
-        if not self.manifest:
-            print("[ERROR] No update manifest available to download.")
+        try:
+            resp = requests.get(f"{SERVER_URL}/manifest.json", timeout=5)
+            if resp.status_code != 200:
+                log_incident(self.state, self.current_version,
+                             f"Manifest endpoint returned {resp.status_code}",
+                             "Staying on current version", "WARNING")
+                self.change_state("IDLE")
+                return False
+
+            self.manifest = resp.json()
+            latest_version = self.manifest.get("version", "unknown")
+            print(f"[POLLER] Found firmware version: {latest_version}")
+
+            if latest_version == self.current_version:
+                print("[POLLER] Already up to date. No action needed.")
+                self.change_state("IDLE")
+                return False
+
+            return True
+
+        except requests.exceptions.RequestException as e:
+            log_incident(self.state, self.current_version,
+                         f"Server unreachable: {e}",
+                         "Staying on current version", "INFO")
+            self.change_state("IDLE")
+            return False
+
+    # ── Module 2: Real Chunked Downloader ───────────────────────
+    def download_firmware(self):
+        self.change_state("DOWNLOADING")
+        download_url = SERVER_URL + self.manifest["download_url"]
+        filename = self.manifest["filename"]
+        local_path = os.path.join(DOWNLOAD_DIR, filename)
+
+        print(f"[DOWNLOADER] Fetching {download_url} in {CHUNK_SIZE}-byte chunks...")
+
+        try:
+            resp = requests.get(download_url, stream=True, timeout=10)
+            if resp.status_code != 200:
+                raise requests.exceptions.RequestException(f"HTTP {resp.status_code}")
+
+            hasher = hashlib.sha256()
+            with open(local_path, "wb") as f:
+                for chunk in resp.iter_content(chunk_size=CHUNK_SIZE):
+                    if chunk:
+                        f.write(chunk)
+                        hasher.update(chunk)
+
+            downloaded_hash = hasher.hexdigest()
+            print(f"[DOWNLOADER] Download complete. Computed hash: {downloaded_hash[:16]}...")
+
+            return local_path, downloaded_hash
+
+        except requests.exceptions.RequestException as e:
+            log_incident(self.state, self.manifest.get("version"),
+                         f"Download failed: {e}",
+                         "Discarding partial file, keeping current version", "WARNING")
+            if os.path.exists(local_path):
+                os.remove(local_path)
+            self.change_state("FAULT")
+            return None, None
+
+    # ── Module 3: Real Signature Verification via CryptoEngine ──
+    def verify_and_apply(self, firmware_path, downloaded_hash):
+        self.change_state("VERIFYING")
+
+        expected_hash = self.manifest.get("sha256")
+        print(f"[SECURITY] Layer 1 - Hash check: downloaded vs manifest")
+        print(f"  Downloaded: {downloaded_hash}")
+        print(f"  Expected:   {expected_hash}")
+
+        if downloaded_hash != expected_hash:
+            log_incident("VERIFYING", self.manifest.get("version"),
+                         "SHA-256 mismatch - download corrupted or tampered",
+                         "Payload discarded - rollback to current version", "CRITICAL")
+            os.remove(firmware_path)
+            self.change_state("FAULT")
             return
 
-        self.change_state("DOWNLOADING")
-        raw_data = self.manifest["payload_data"]
-        chunk_size = self.manifest["chunk_size_bytes"]
-        
-        assembled_firmware = ""
-        total_length = len(raw_data)
-        
-        print(f"[DOWNLOADER] Initiating chunked download. Total size: {total_length} bytes. Chunk budget: {chunk_size} bytes.")
-        
-        # Processing file download sequentially in chunks to protect limited Edge Device RAM
-        for i in range(0, total_length, chunk_size):
-            chunk = raw_data[i:i+chunk_size]
-            assembled_firmware += chunk
-            print(f"  └─► Downloaded chunk [{i//chunk_size + 1}]: '{chunk}' ({len(chunk)} bytes)")
-            time.sleep(0.8) # Simulate chunk stream delay
-            
-        print("[DOWNLOADER] Stream terminated. All pieces assembled locally.")
-        self.verify_download(assembled_firmware)
+        sig_url = self.manifest.get("signature_url")
+        if not sig_url:
+            log_incident("VERIFYING", self.manifest.get("version"),
+                         "No signature available for this firmware",
+                         "Payload discarded - signature required", "CRITICAL")
+            os.remove(firmware_path)
+            self.change_state("FAULT")
+            return
 
-    def verify_download(self, downloaded_data):
-        self.change_state("VERIFYING")
-        print("[SECURITY] Calculating SHA-256 fingerprint integrity checksum...")
-        time.sleep(1)
-        
-        calculated_hash = hashlib.sha256(downloaded_data.encode()).hexdigest()
-        expected_hash = self.manifest["expected_sha256"]
-        
-        print(f"  ├─ Calculated Hash: {calculated_hash}")
-        print(f"  ├─ Expected Hash:   {expected_hash}")
-        
-        if calculated_hash == expected_hash:
-            print("\n[SUCCESS] Verification passed! Signature matches perfectly. System Safe.")
+        sig_resp = requests.get(SERVER_URL + sig_url, timeout=5)
+        sig_path = firmware_path + ".sig"
+        with open(sig_path, "wb") as f:
+            f.write(sig_resp.content)
+
+        print("[SECURITY] Layer 2 - Digital signature verification (CryptoEngine)")
+        engine = CryptoEngine(algorithm="RSA")
+        is_valid = engine.verify(firmware_path, sig_path, PUBLIC_KEY_PATH)
+
+        if is_valid:
+            print("\n[SUCCESS] Signature verified. Applying update.")
+            self.change_state("APPLYING")
+            self.current_version = self.manifest["version"]
+            self._save_state()
+            print(f"[APPLY] Firmware updated to version {self.current_version}")
             self.change_state("IDLE")
         else:
-            print("\n[CRITICAL ERROR] Integrity Verification failed! Data corruption detected.")
+            log_incident("VERIFYING", self.manifest.get("version"),
+                         "Digital signature verification failed - possible tampering",
+                         "Payload discarded - remaining on current version", "CRITICAL")
+            os.remove(firmware_path)
+            os.remove(sig_path)
             self.change_state("FAULT")
 
-# --- Execution Simulation ---
+    def run_cycle(self):
+        if self.poll_manifest():
+            firmware_path, downloaded_hash = self.download_firmware()
+            if firmware_path:
+                self.verify_and_apply(firmware_path, downloaded_hash)
+
+
 if __name__ == "__main__":
-    # Initialize the edge lifecycle
-    agent = EdgeAgent()
-    
-    # 1. Trigger Polling State
-    agent.poll_manifest()
-    
-    # 2. Trigger Downloader and Verification States
-    agent.download_firmware_chunked()
+    agent = EdgeAgent(current_version="0.0.0")
+    agent.run_cycle()
