@@ -22,6 +22,15 @@ import requests
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "crypto"))
 
+# Helper functions for Semantic Versioning
+def version_tuple(v):
+    # Converts "1.0.2" to (1, 0, 2) for numeric comparison
+    return tuple(int(x) for x in v.split('.'))
+
+def is_newer(candidate, current):
+    # Returns True if candidate version is strictly greater than current
+    return version_tuple(candidate) > version_tuple(current)
+
 from engine import CryptoEngine  # noqa: E402
 from incident_logger import log_incident  # noqa: E402
 
