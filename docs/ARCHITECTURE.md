@@ -56,11 +56,58 @@ Fail -> CRITICAL alert + discard bundle
 ## Edge Agent State Machine
 
 ```
-IDLE -> DOWNLOADING -> VERIFYING -> APPLYING -> INSTALLED
-                           |
-                           v (on failure)
-                       REJECTED + ALERT LOG
+IDLE -> POLLING -> DOWNLOADING -> VERIFYING -> APPLYING -> IDLE
+                                       |
+                                       v (on failure)
+                                    FAULT + ALERT LOG
 ```
+
+### State Definitions and Valid Transitions
+
+| State | Meaning | Valid Next States | Triggered By |
+|-------|---------|-------------------|---------------|
+| **IDLE** | Agent is idle, no active update cycle | POLLING | Timer tick / manual trigger |
+| **POLLING** | Checking server `/manifest.json` for a newer version | DOWNLOADING, IDLE | Manifest fetch result |
+| **DOWNLOADING** | Fetching firmware in chunks from server | VERIFYING, FAULT | Download completes / fails |
+| **VERIFYING** | Checking SHA-256 hash + digital signature | APPLYING, FAULT | Hash/signature match or mismatch |
+| **APPLYING** | Installing verified firmware, updating version | IDLE | Install completes |
+| **FAULT** | A check failed — payload discarded, incident logged | IDLE | Recovery / next poll cycle |
+
+### Rule
+> The agent **never** transitions from VERIFYING to APPLYING unless **both** the SHA-256 hash check **and** the digital signature check pass. A failure at either layer routes to FAULT, never partially applies an update.
+
+---
+
+## Logging Framework
+
+Every state transition prints a structured console line:
+```
+[STATE TRANSITION] <FROM> --> <TO>
+```
+
+Every **failure** (any transition into `FAULT`) additionally writes a JSON incident report via `edge-agent/incident_logger.py` to `edge-agent/logs/INC-<timestamp>.json`:
+
+```json
+{
+  "incident_id": "INC-20260629061000",
+  "timestamp": "2026-06-29T06:10:00Z",
+  "state_at_failure": "VERIFYING",
+  "firmware_version": "1.0.0",
+  "failure_reason": "SHA-256 mismatch - download corrupted or tampered",
+  "action_taken": "Payload discarded - rollback to current version",
+  "alert_level": "CRITICAL"
+}
+```
+
+| Field | Purpose |
+|-------|---------|
+| `incident_id` | Unique, timestamp-based, used as the log filename |
+| `state_at_failure` | Which state the agent was in when it failed |
+| `failure_reason` | Human-readable cause (hash mismatch, signature invalid, server unreachable, etc.) |
+| `action_taken` | What the agent did in response — always fail-safe (discard, never partially install) |
+| `alert_level` | `INFO` (e.g. server unreachable), `WARNING` (e.g. download failed), or `CRITICAL` (e.g. tampering detected) |
+
+This gives auditors a timestamped, file-based trail of every security-relevant event without needing to parse console output.
 
 ---
 
@@ -81,25 +128,39 @@ IDLE -> DOWNLOADING -> VERIFYING -> APPLYING -> INSTALLED
 Infoatact-Internship/
 ├── .github/
 │   └── workflows/
-│       └── sign-and-release.yml    <- Jagadesh (Week 2)
+│       ├── sign-and-release.yml    <- Harish (3-job CI/CD pipeline)
+│       └── secret-scan.yml         <- Harish
 ├── server/                          <- Jagadesh
-│   └── app.py
+│   ├── app.py
+│   ├── auth.py
+│   ├── rate_limiter.py
+│   ├── logger.py
+│   ├── manifest.py
+│   └── version_registry.py
 ├── crypto/                          <- Sourish
-│   ├── generate_keys.py
-│   ├── hash_firmware.py
-│   └── sign_firmware.py
+│   ├── rsa_keygen.py
+│   ├── ecdsa_keygen.py
+│   ├── sha256_hash.py
+│   ├── engine.py
+│   ├── fingerprint.py
+│   └── sig_bundle.py
 ├── edge-agent/                      <- Rishi
 │   ├── agent.py
-│   ├── verify.py
-│   └── mock_install.py
+│   ├── incident_logger.py
+│   ├── sign_helper.py
+│   └── create_dummy_firmware.py
 ├── metadata/                        <- Harish
 │   ├── sample_metadata.json
 │   └── README.md
 ├── docs/                            <- Harish
 │   ├── ARCHITECTURE.md
 │   └── THREAT_MODEL.md
+├── tests/                           <- Harish
+│   ├── integration_test.py
+│   ├── malicious_actor_test.py
+│   └── end_to_end_demo.py
 ├── .gitignore                       <- Harish (Day 1)
-└── README.md                        <- Rishi (Week 4)
+└── README.md
 ```
 
 ---
@@ -108,9 +169,9 @@ Infoatact-Internship/
 
 ```
 Week 1: Keys(Sourish) + Server(Jagadesh) + Signing(Rishi) + Structure(Harish)
-Week 2: Pipeline(Jagadesh) + CLI(Sourish) + Bundle Upload(Rishi) + Security(Harish)
-Week 3: Downloader(Jagadesh) + Verifier(Sourish) + Installer(Rishi) + State Machine(Harish)
-Week 4: Rollback(Jagadesh) + Unit Tests(Sourish) + Docs(Rishi) + Integration Test(Harish)
+Week 2: Pipeline(Harish) + Crypto Engine(Sourish) + Secure Server(Jagadesh) + State Machine(Rishi)
+Week 3: Live Manifest(Jagadesh) + Real Verification(Rishi+Sourish) + Tamper Tests(Harish)
+Week 4: Rollback(Jagadesh) + Unit Tests(Sourish) + Docs(Rishi) + Final Integration Test(Harish)
         -> COMPLETE WORKING SYSTEM
 ```
 
@@ -121,8 +182,8 @@ Week 4: Rollback(Jagadesh) + Unit Tests(Sourish) + Docs(Rishi) + Integration Tes
 | Layer | Technology |
 |-------|-----------|
 | CI/CD | GitHub Actions |
-| Signing | Python `cryptography` library (RSA-2048 or ECDSA P-256) |
+| Signing | Python `cryptography` library (RSA-2048 PSS or ECDSA P-256) |
 | Hashing | Python `hashlib` SHA-256 |
-| Distribution Server | Flask or FastAPI |
-| Edge Agent | Python 3.10+ |
+| Distribution Server | Flask |
+| Edge Agent | Python 3.11+ |
 | Key Storage (CI) | GitHub Secrets |
