@@ -86,6 +86,22 @@ class EdgeAgent:
                 self.change_state("IDLE")
                 return False
 
+                  # --- ANTI-ROLLBACK ENFORCEMENT ---
+        if not is_newer(latest_version, self.current_version):
+            print(f"[POLLER] WARNING: Rollback attempt detected!")
+            log_incident(self.state, latest_version, 
+                         f"Rollback attempt blocked: offered {latest_version} <= current {self.current_version}", 
+                         "WARNING")
+            self.change_state("IDLE")
+            return False 
+        
+        # Keep existing "already up to date" check
+        if latest_version == self.current_version:
+            print(f"[POLLER] Already up to date. No action needed.")
+            self.change_state("IDLE")
+            return False
+        # ---------------------------------
+
             return True
 
         except requests.exceptions.RequestException as e:
