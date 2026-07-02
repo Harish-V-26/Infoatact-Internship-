@@ -17,6 +17,20 @@ os.makedirs(FIRMWARE_DIR, exist_ok=True)
 def health_check():
     """Health check endpoint — confirms server is running."""
     return jsonify({"status": "ok", "message": "OTA Distribution Server is running"})
+@app.route("/firmware/latest", methods=["GET"])
+def latest_firmware():
+    files = os.listdir(FIRMWARE_DIR)
+
+    if not files:
+        return jsonify({"error": "No firmware found"}), 404
+
+    latest = files[0]
+
+    return jsonify({
+        "version": "1.0.1",
+        "filename": latest,
+        "download_url": f"http://127.0.0.1:5000/firmware/{latest}"
+    })
 
 
 @app.route("/firmware/<filename>", methods=["GET"])
@@ -28,9 +42,9 @@ def serve_firmware(filename):
     return send_from_directory(FIRMWARE_DIR, filename)
 
 
+
 @app.route("/firmware", methods=["GET"])
 def list_firmware():
-    """Lists all available firmware bundles on the server."""
     files = os.listdir(FIRMWARE_DIR)
     return jsonify({"available_firmware": files})
 
