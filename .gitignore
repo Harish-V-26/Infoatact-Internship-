@@ -1,42 +1,28 @@
-# ============================================
-# CRITICAL: Private Keys — NEVER commit these
-# ============================================
+# Generated files
+firmware.hash
+firmware.sig
+*.sig
+*.hash
+
+# Private keys — NEVER commit these
 *.pem
 *.key
 private_key*
-*.p12
-*.pfx
-*.pkcs12
-
-# Allow public keys that are safe to commit
-!crypto/public_key.pem
-!crypto/ecdsa_public.pem
-
-# Ignore private key directory
 keys/
-
-# Signature files (auto-generated)
-*.sig
 
 # Python
 __pycache__/
 *.pyc
 *.pyo
 .env
-.env.*
-venv/
-.venv/
-*.egg-info/
 
-# OS
-.DS_Store
-Thumbs.db
+# Uploads and logs
+server/uploads/*
+edge-agent/logs/*
+edge-agent/downloads/*
+edge-agent/state.json
 
-# Logs
-*.log
-logs/
-
-# Build artifacts
-firmware.bin
-dist/
-build/
+# Keep folder structure
+!server/uploads/.gitkeep
+!edge-agent/logs/.gitkeep
+!edge-agent/downloads/.gitkeep
