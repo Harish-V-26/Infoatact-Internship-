@@ -1,0 +1,2 @@
+OTA Firmware Version 1.0
+This is a dummy file upload/download test.
