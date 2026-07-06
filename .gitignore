@@ -8,14 +8,38 @@ private_key*
 *.pfx
 *.pkcs12
 
+# Allow public keys that are safe to commit
+!crypto/public_key.pem
+!crypto/ecdsa_public.pem
+
+# Ignore private key directory
+keys/
+
 # Signature files (auto-generated)
 *.sig
+*.sig.json
+
+# Test files
+test_engine.py
+
+# Generated files
+firmware.hash
+firmware.sig
+*.sig
+*.hash
+
+# Private keys — NEVER commit these
+*.pem
+*.key
+private_key*
+keys/
 
 # Python
 __pycache__/
 *.pyc
 *.pyo
 .env
+<<<<<<< HEAD
 .env.*
 venv/
 .venv/
@@ -33,3 +57,16 @@ logs/
 firmware.bin
 dist/
 build/
+=======
+
+# Uploads and logs
+server/uploads/*
+edge-agent/logs/*
+edge-agent/downloads/*
+edge-agent/state.json
+
+# Keep folder structure
+!server/uploads/.gitkeep
+!edge-agent/logs/.gitkeep
+!edge-agent/downloads/.gitkeep
+>>>>>>> origin/main

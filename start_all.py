@@ -1,0 +1,111 @@
+"""
+One-Command System Launcher
+Owner: Harish (Lead)
+
+Starts the REAL server, generates + signs a real firmware bundle,
+places it where the server can serve it, then runs the REAL edge
+agent against it — all with a single command.
+
+Run with: python start_all.py
+Requires: pip install flask requests cryptography
+"""
+
+import os
+import sys
+import time
+import shutil
+import hashlib
+import subprocess
+import threading
+
+ROOT = os.path.dirname(os.path.abspath(__file__))
+SERVER_DIR = os.path.join(ROOT, "server")
+CRYPTO_DIR = os.path.join(ROOT, "crypto")
+EDGE_DIR = os.path.join(ROOT, "edge-agent")
+UPLOAD_DIR = os.path.join(SERVER_DIR, "uploads")
+
+
+def step(msg):
+    print(f"\n{'=' * 60}\n{msg}\n{'=' * 60}")
+
+
+def start_server():
+    """Starts server/app.py as a background subprocess."""
+    step("[1/5] Starting OTA distribution server (server/app.py)")
+    proc = subprocess.Popen(
+        [sys.executable, "app.py"],
+        cwd=SERVER_DIR,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    time.sleep(2)
+    print("      Server started in background (PID: %s)" % proc.pid)
+    return proc
+
+
+def generate_keys():
+    step("[2/5] Generating RSA key pair (crypto/keygen.py)")
+    subprocess.run([sys.executable, "keygen.py"], cwd=CRYPTO_DIR, check=True)
+    print("      private_key.pem and crypto/public_key.pem ready")
+
+
+def build_and_sign_firmware():
+    step("[3/5] Building and signing firmware v1.0.0")
+
+    firmware_path = os.path.join(EDGE_DIR, "dummy_firmware.bin")
+    if not os.path.exists(firmware_path):
+        with open(firmware_path, "wb") as f:
+            f.write(b"OTA_FW Cargo Tracker Firmware v1.0.0" * 5)
+
+    hasher = hashlib.sha256()
+    with open(firmware_path, "rb") as f:
+        hasher.update(f.read())
+    firmware_hash = hasher.hexdigest()
+
+    private_key_path = os.path.join(ROOT, "private_key.pem")
+    sig_path = os.path.join(EDGE_DIR, "firmware.sig")
+
+    subprocess.run(
+        [
+            sys.executable, "sign_helper.py",
+            "-k", private_key_path,
+            "--hash", firmware_hash,
+            "-o", sig_path
+        ],
+        cwd=EDGE_DIR,
+        check=True
+    )
+    print(f"      Signed. SHA-256: {firmware_hash[:16]}...")
+
+    os.makedirs(UPLOAD_DIR, exist_ok=True)
+    shutil.copy(firmware_path, os.path.join(UPLOAD_DIR, "v1.0.0.bin"))
+    shutil.copy(sig_path, os.path.join(UPLOAD_DIR, "v1.0.0.sig"))
+    print("      Bundle placed in server/uploads/")
+
+
+def run_agent():
+    step("[4/5] Running the real Edge Agent (edge-agent/agent.py)")
+    subprocess.run([sys.executable, "agent.py"], cwd=EDGE_DIR, check=False)
+
+
+def main():
+    print("=" * 60)
+    print("OTA FIRMWARE SECURITY - ONE-COMMAND SYSTEM LAUNCH")
+    print("=" * 60)
+
+    server_proc = start_server()
+
+    try:
+        generate_keys()
+        build_and_sign_firmware()
+        run_agent()
+
+        step("[5/5] Done. Check edge-agent/state.json and edge-agent/logs/")
+
+    finally:
+        print("\nShutting down server...")
+        server_proc.terminate()
+
+
+if __name__ == "__main__":
+    main()
