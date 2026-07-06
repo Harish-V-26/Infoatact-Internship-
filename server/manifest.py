@@ -17,10 +17,13 @@ def calculate_sha256(filepath):
 
 def generate_manifest(version, filename, filepath):
     return {
-        "version": version,
-        "filename": filename,
-        "sha256": calculate_sha256(filepath)
-    }
+    "version": version,
+    "filename": filename,
+    "sha256": calculate_sha256(filepath),
+    "build_number": 1,
+    "uploaded_at": "2026-07-06T00:00:00Z"
+}
+    
 
 def save_manifest(manifest_data, output_file="manifest.json"):
     with open(output_file, "w") as f:
