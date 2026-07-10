@@ -36,7 +36,8 @@ os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
 
 def version_tuple(v):
-    """Convert '1.0.2' -> (1, 0, 2) for correct numeric comparison."""
+    """Convert 'v1.0.2' or '1.0.2' -> (1, 0, 2) for correct numeric comparison."""
+    v = v.lstrip("vV")
     return tuple(int(x) for x in v.split("."))
 
 

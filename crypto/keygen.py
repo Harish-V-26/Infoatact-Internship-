@@ -30,7 +30,7 @@ def generate_rsa_keypair(private_key_path="private_key.pem", public_key_path="cr
     )
     with open(private_key_path, "wb") as f:
         f.write(private_pem)
-    print(f"[✓] Private key saved to: {private_key_path}  <-- DO NOT COMMIT THIS FILE")
+    print(f"[OK] Private key saved to: {private_key_path}  <-- DO NOT COMMIT THIS FILE")
 
     # Serialize and save public key (safe to commit)
     public_key = private_key.public_key()
@@ -42,7 +42,7 @@ def generate_rsa_keypair(private_key_path="private_key.pem", public_key_path="cr
     os.makedirs(os.path.dirname(public_key_path), exist_ok=True)
     with open(public_key_path, "wb") as f:
         f.write(public_pem)
-    print(f"[✓] Public key saved to: {public_key_path}  <-- Safe to commit")
+    print(f"[OK] Public key saved to: {public_key_path}  <-- Safe to commit")
 
 
 if __name__ == "__main__":

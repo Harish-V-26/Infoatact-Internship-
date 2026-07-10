@@ -49,9 +49,9 @@ def sign_firmware(key_path, firmware_path, output_path):
     with open(output_path, "wb") as sig_file:
         sig_file.write(signature)
 
-    print(f"[✓] Signature saved to: {output_path}")
-    print(f"[✓] Firmware signed: {firmware_path}")
-    print(f"[✓] Signature size: {len(signature)} bytes")
+    print(f"[OK] Signature saved to: {output_path}")
+    print(f"[OK] Firmware signed: {firmware_path}")
+    print(f"[OK] Signature size: {len(signature)} bytes")
 
 
 if __name__ == "__main__":
@@ -67,5 +67,5 @@ if __name__ == "__main__":
     try:
         sign_firmware(args.key, args.firmware, args.output)
     except Exception as e:
-        print(f"[✗] Signing failed: {e}")
+        print(f"[ERROR] Signing failed: {e}")
         exit(1)

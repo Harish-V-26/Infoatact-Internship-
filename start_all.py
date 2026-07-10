@@ -43,9 +43,28 @@ def start_server():
     return proc
 
 
+def cleanup_stale_files():
+    """Remove stale uploads, downloads, and old keys to ensure a clean run."""
+    step("[0/5] Cleaning up stale files from previous runs")
+    stale_files = [
+        os.path.join(ROOT, "private_key.pem"),
+        os.path.join(CRYPTO_DIR, "public_key.pem"),
+        os.path.join(EDGE_DIR, "firmware.sig"),
+    ]
+    for f in stale_files:
+        if os.path.exists(f):
+            os.remove(f)
+            print(f"      Removed: {f}")
+    for d in [UPLOAD_DIR, os.path.join(EDGE_DIR, "downloads")]:
+        if os.path.exists(d):
+            shutil.rmtree(d)
+            print(f"      Cleared: {d}")
+    print("      Cleanup done.")
+
+
 def generate_keys():
     step("[2/5] Generating RSA key pair (crypto/keygen.py)")
-    subprocess.run([sys.executable, "keygen.py"], cwd=CRYPTO_DIR, check=True)
+    subprocess.run([sys.executable, os.path.join("crypto", "keygen.py")], cwd=ROOT, check=True)
     print("      private_key.pem and crypto/public_key.pem ready")
 
 
@@ -67,9 +86,9 @@ def build_and_sign_firmware():
 
     subprocess.run(
         [
-            sys.executable, "sign_helper.py",
+            sys.executable, "signer.py",
             "-k", private_key_path,
-            "--hash", firmware_hash,
+            "-f", firmware_path,
             "-o", sig_path
         ],
         cwd=EDGE_DIR,
@@ -93,6 +112,7 @@ def main():
     print("OTA FIRMWARE SECURITY - ONE-COMMAND SYSTEM LAUNCH")
     print("=" * 60)
 
+    cleanup_stale_files()
     server_proc = start_server()
 
     try:
