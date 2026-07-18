@@ -1,0 +1,84 @@
+{
+  "notes": [
+    {
+      "note_id": 1,
+      "text": "Patient John Doe, DOB 1985-03-14, presented with chronic lower back pain. Contact: (555) 123-4567. Address: 42 Maple Street, Springfield. Diagnosis: lumbar strain. Follow-up in 2 weeks."
+    },
+    {
+      "note_id": 2,
+      "text": "Ms. Jane Appleseed, age 34, reported symptoms of Parkinson's disease progression. Email: jane.appleseed@example.com. Seen by Dr. Robert Chen at Springfield General Hospital on 2026-04-02."
+    },
+    {
+      "note_id": 3,
+      "text": "Patient Michael Smith (DOB: 1990-11-22) came in for a routine checkup. Phone: 555-987-6543. Lives at 100 Oak Avenue, Riverdale. No abnormalities found."
+    },
+    {
+      "note_id": 4,
+      "text": "Emily Johnson, 45F, complaining of migraines. Contact number 555-222-3344. Address 7 Birch Lane. Referred to Dr. Priya Patel, Neurology, Riverdale Medical Center."
+    },
+    {
+      "note_id": 5,
+      "text": "Patient: David Lee. DOB 1978-06-30. Diagnosed with early-stage Alzheimer's disease. Phone (555) 444-5566. Caregiver contact: susan.lee@example.com."
+    },
+    {
+      "note_id": 6,
+      "text": "Sarah Williams, born 1995-01-19, admitted for appendicitis. Home address: 55 Cedar Court, Lakeview. Emergency contact 555-777-8899. Surgeon: Dr. Amanda Rivera."
+    },
+    {
+      "note_id": 7,
+      "text": "Mr. James Brown, age 60, history of Crohn's disease. Reachable at james.brown@example.com or 555-321-6547. Lives at 12 Pine Road, Hillcrest."
+    },
+    {
+      "note_id": 8,
+      "text": "Patient Linda Martinez, DOB 1988-09-05, follow-up for hypertension. Phone: 555-654-9870. Address: 8 Elm Street. Physician: Dr. Kevin Nguyen, Cardiology."
+    },
+    {
+      "note_id": 9,
+      "text": "Robert Taylor, 52M, evaluated for suspected Huntington's disease based on family history. Contact 555-888-1234. Seen at Lakeview Neurology Clinic on 2026-03-18."
+    },
+    {
+      "note_id": 10,
+      "text": "Patient Nancy Anderson (DOB 1970-12-01) reported joint pain. Email nancy.anderson@example.com. Phone (555) 111-2233. Address 19 Willow Way, Fairview."
+    },
+    {
+      "note_id": 11,
+      "text": "Charles Thomas, age 40, checked in with fever and cough. Home phone 555-456-7890. Address 3 Aspen Court. Diagnosed with seasonal flu."
+    },
+    {
+      "note_id": 12,
+      "text": "Patient Karen White, DOB 1965-04-27, long-time management of Tourette syndrome symptoms. Contact karen.white@example.com. Address 21 Chestnut Drive, Brookfield."
+    },
+    {
+      "note_id": 13,
+      "text": "Mr. Daniel Harris, 29, sports injury to left knee. Phone 555-333-7766. Lives at 66 Poplar Street. Seen by Dr. Laura Kim, Orthopedics, Brookfield Clinic."
+    },
+    {
+      "note_id": 14,
+      "text": "Patient Barbara Clark (DOB: 1992-08-14) presented with symptoms consistent with early Parkinson's disease. Email barbara.clark@example.com. Phone 555-909-1122."
+    },
+    {
+      "note_id": 15,
+      "text": "Steven Lewis, 66M, follow-up for Type 2 diabetes. Address 5 Magnolia Ave, Oakridge. Contact 555-654-3210. Physician: Dr. Rachel Adams, Endocrinology."
+    },
+    {
+      "note_id": 16,
+      "text": "Patient Patricia Walker, DOB 1983-02-09, referred for suspected Alzheimer's disease early screening. Phone (555) 202-4040. Address 14 Sycamore Lane."
+    },
+    {
+      "note_id": 17,
+      "text": "Mr. Kevin Young, age 37, annual physical. Contact kevin.young@example.com or 555-303-5050. Lives at 9 Redwood Terrace, Fairview."
+    },
+    {
+      "note_id": 18,
+      "text": "Patient Michelle Hall (DOB 1975-07-21) presenting with symptoms possibly related to Crohn's disease flare-up. Phone 555-404-6060. Seen by Dr. Omar Farouk."
+    },
+    {
+      "note_id": 19,
+      "text": "Christopher King, 48, chronic back issues. Address 27 Fir Street, Hillcrest. Phone 555-505-7070. Email christopher.king@example.com."
+    },
+    {
+      "note_id": 20,
+      "text": "Patient Jessica Wright, DOB 1998-05-16, initial consult for anxiety and stress management. Contact 555-606-8080. Address 33 Spruce Blvd, Lakeview."
+    }
+  ]
+}
