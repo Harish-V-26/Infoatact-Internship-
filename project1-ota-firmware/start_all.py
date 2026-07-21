@@ -12,10 +12,28 @@ Requires: pip install flask requests cryptography
 
 import os
 import sys
+import subprocess
+
+# --- Auto-install required packages if missing ---
+REQUIRED_PACKAGES = ["flask", "requests", "cryptography"]
+
+def ensure_dependencies():
+    missing = []
+    for pkg in REQUIRED_PACKAGES:
+        try:
+            __import__(pkg)
+        except ImportError:
+            missing.append(pkg)
+    if missing:
+        print(f"[*] Missing dependencies detected: {missing}. Installing automatically...")
+        subprocess.check_call([sys.executable, "-m", "pip", "install"] + missing)
+        print("[*] All dependencies installed successfully!\n")
+
+ensure_dependencies()
+
 import time
 import shutil
 import hashlib
-import subprocess
 import threading
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
@@ -25,13 +43,39 @@ EDGE_DIR = os.path.join(ROOT, "edge-agent")
 UPLOAD_DIR = os.path.join(SERVER_DIR, "uploads")
 
 
+
 def step(msg):
     print(f"\n{'=' * 60}\n{msg}\n{'=' * 60}")
+
+
+def kill_stale_server():
+    """Kill any process already listening on port 5000 and wait until the port is free."""
+    import time
+    for attempt in range(5):
+        try:
+            result = subprocess.run(
+                ["netstat", "-ano"],
+                capture_output=True, text=True
+            )
+            pids = set()
+            for line in result.stdout.splitlines():
+                if ":5000" in line and "LISTENING" in line:
+                    pid = line.strip().split()[-1]
+                    pids.add(pid)
+            if not pids:
+                break  # Port is free
+            for pid in pids:
+                subprocess.run(["taskkill", "/F", "/PID", pid], capture_output=True)
+                print(f"      Killed stale server (PID: {pid})")
+            time.sleep(1)
+        except Exception:
+            break
 
 
 def start_server():
     """Starts server/app.py as a background subprocess."""
     step("[1/5] Starting OTA distribution server (server/app.py)")
+    kill_stale_server()
     proc = subprocess.Popen(
         [sys.executable, "app.py"],
         cwd=SERVER_DIR,
