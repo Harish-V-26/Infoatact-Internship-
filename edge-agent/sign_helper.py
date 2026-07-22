@@ -53,6 +53,6 @@ if __name__ == "__main__":
         sig_data = sign_hash(args.key, args.hash)
         with open(args.output, "wb") as sig_file:
             sig_file.write(sig_data)
-        print(f"[✓] Signature saved to: {args.output}")
+        print(f"[[OK]] Signature saved to: {args.output}")
     except Exception as e:
-        print(f"[✗] Signing failed: {e}")
+        print(f"[[ERROR]] Signing failed: {e}")

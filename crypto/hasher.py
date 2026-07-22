@@ -1,4 +1,4 @@
-# Week 1 — Firmware SHA-256 Hasher
+# Week 1 -- Firmware SHA-256 Hasher
 # Computes the SHA-256 hash of a firmware binary file
 # Output hash is passed to sign_helper.py for signing
 
@@ -46,11 +46,11 @@ if __name__ == "__main__":
 
     try:
         firmware_hash = compute_sha256(args.firmware)
-        print(f"[✓] SHA-256 Hash: {firmware_hash}")
+        print(f"[[OK]] SHA-256 Hash: {firmware_hash}")
 
         if args.output:
             with open(args.output, "w") as out:
                 out.write(firmware_hash)
-            print(f"[✓] Hash saved to: {args.output}")
+            print(f"[[OK]] Hash saved to: {args.output}")
     except Exception as e:
-        print(f"[✗] Error: {e}")
+        print(f"[[ERROR]] Error: {e}")

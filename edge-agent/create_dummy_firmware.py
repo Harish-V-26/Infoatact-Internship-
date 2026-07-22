@@ -16,7 +16,7 @@ def create_dummy_firmware(output_path="edge-agent/dummy_firmware.bin", version="
     version_bytes = version.encode().ljust(16, b"\x00")  # 16 byte version field
     build_number = struct.pack(">I", 1)   # Build number as 4-byte big-endian int
 
-    # Mock payload — simulates actual firmware code
+    # Mock payload -- simulates actual firmware code
     payload = (
         b"FIRMWARE_PAYLOAD_START\n"
         b"IoT Cargo Tracker Firmware\n"
@@ -35,9 +35,9 @@ def create_dummy_firmware(output_path="edge-agent/dummy_firmware.bin", version="
     with open(output_path, "wb") as f:
         f.write(firmware_data)
 
-    print(f"[✓] Dummy firmware created: {output_path}")
-    print(f"[✓] File size: {len(firmware_data)} bytes")
-    print(f"[✓] Version embedded: {version}")
+    print(f"[[OK]] Dummy firmware created: {output_path}")
+    print(f"[[OK]] File size: {len(firmware_data)} bytes")
+    print(f"[[OK]] Version embedded: {version}")
 
 
 if __name__ == "__main__":

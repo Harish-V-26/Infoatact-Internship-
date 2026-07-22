@@ -17,7 +17,7 @@ import json
 import hashlib
 import requests
 
-# Fix import path — works regardless of which directory you run from
+# Fix import path -- works regardless of which directory you run from
 AGENT_DIR = os.path.dirname(os.path.abspath(__file__))
 CRYPTO_DIR = os.path.join(AGENT_DIR, "..", "crypto")
 sys.path.insert(0, CRYPTO_DIR)
@@ -152,33 +152,33 @@ class EdgeAgent:
     def verify_and_apply(self, firmware_path, downloaded_hash):
         self.change_state("VERIFYING")
 
-        # Layer 1 — SHA-256 hash check
+        # Layer 1 -- SHA-256 hash check
         expected_hash = self.manifest.get("sha256")
-        print(f"\n[VERIFY] Layer 1 — SHA-256 hash check")
+        print(f"\n[VERIFY] Layer 1 -- SHA-256 hash check")
         print(f"  Downloaded : {downloaded_hash}")
         print(f"  Expected   : {expected_hash}")
 
         if downloaded_hash != expected_hash:
             log_incident("VERIFYING", self.manifest.get("version"),
-                         "SHA-256 mismatch — firmware corrupted or tampered in transit",
-                         "Payload discarded — staying on current version", "CRITICAL")
+                         "SHA-256 mismatch -- firmware corrupted or tampered in transit",
+                         "Payload discarded -- staying on current version", "CRITICAL")
             os.remove(firmware_path)
             self.change_state("FAULT")
             return
 
-        print("[VERIFY] Layer 1 PASSED — hash matches")
+        print("[VERIFY] Layer 1 PASSED -- hash matches")
 
-        # Layer 2 — Digital signature check
+        # Layer 2 -- Digital signature check
         sig_url = self.manifest.get("signature_url")
         if not sig_url:
             log_incident("VERIFYING", self.manifest.get("version"),
-                         "No signature URL in manifest — cannot verify authenticity",
-                         "Payload discarded — signature required", "CRITICAL")
+                         "No signature URL in manifest -- cannot verify authenticity",
+                         "Payload discarded -- signature required", "CRITICAL")
             os.remove(firmware_path)
             self.change_state("FAULT")
             return
 
-        print(f"\n[VERIFY] Layer 2 — Digital signature verification (CryptoEngine RSA)")
+        print(f"\n[VERIFY] Layer 2 -- Digital signature verification (CryptoEngine RSA)")
         sig_resp = requests.get(SERVER_URL + sig_url, timeout=5)
         sig_path = firmware_path + ".sig"
         with open(sig_path, "wb") as f:
@@ -187,7 +187,7 @@ class EdgeAgent:
         if not os.path.exists(PUBLIC_KEY_PATH):
             log_incident("VERIFYING", self.manifest.get("version"),
                          f"Public key not found at: {PUBLIC_KEY_PATH}",
-                         "Cannot verify signature — payload discarded", "CRITICAL")
+                         "Cannot verify signature -- payload discarded", "CRITICAL")
             self.change_state("FAULT")
             return
 
@@ -195,7 +195,7 @@ class EdgeAgent:
         is_valid = engine.verify(firmware_path, sig_path, PUBLIC_KEY_PATH)
 
         if is_valid:
-            print("[VERIFY] Layer 2 PASSED — signature is authentic")
+            print("[VERIFY] Layer 2 PASSED -- signature is authentic")
             self.change_state("APPLYING")
             self.current_version = self.manifest["version"]
             self._save_state()
@@ -204,8 +204,8 @@ class EdgeAgent:
             self.change_state("IDLE")
         else:
             log_incident("VERIFYING", self.manifest.get("version"),
-                         "Digital signature INVALID — firmware may have been tampered with",
-                         "Payload discarded — staying on current version", "CRITICAL")
+                         "Digital signature INVALID -- firmware may have been tampered with",
+                         "Payload discarded -- staying on current version", "CRITICAL")
             os.remove(firmware_path)
             if os.path.exists(sig_path):
                 os.remove(sig_path)

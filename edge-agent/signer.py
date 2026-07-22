@@ -1,8 +1,8 @@
-# Week 1 — Firmware Signing Script
+# Week 1 -- Firmware Signing Script
 # Owner: Rishi (Edge Agent / QA)
 # Branch: rishi-edge
 # Takes firmware binary + private key → produces .sig signature file
-# NOTE: Week 2 upgrade — private key will come from env variable, not file path
+# NOTE: Week 2 upgrade -- private key will come from env variable, not file path
 
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding

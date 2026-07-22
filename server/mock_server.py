@@ -1,4 +1,4 @@
-# Week 1 — Mock Distribution Server (Placeholder)
+# Week 1 -- Mock Distribution Server (Placeholder)
 # Simple Flask server to simulate OTA firmware distribution
 # Full implementation due Week 2
 # Owner: Member 2 (DevOps)
@@ -15,7 +15,7 @@ os.makedirs(FIRMWARE_DIR, exist_ok=True)
 
 @app.route("/health", methods=["GET"])
 def health_check():
-    """Health check endpoint — confirms server is running."""
+    """Health check endpoint -- confirms server is running."""
     return jsonify({"status": "ok", "message": "OTA Distribution Server is running"})
 @app.route("/firmware/latest", methods=["GET"])
 def latest_firmware():

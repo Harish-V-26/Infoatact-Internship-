@@ -1,7 +1,8 @@
 import os
 import sys
 import hashlib
-from flask import Flask, jsonify, request, send_from_directory
+import subprocess
+from flask import Flask, jsonify, request, send_from_directory, render_template
 
 # Fix import path so manifest.py is always found
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -10,12 +11,69 @@ from manifest import generate_manifest  # noqa: E402
 app = Flask(__name__)
 
 UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), "uploads")
+ROOT_DIR = os.path.dirname(os.path.dirname(__file__))
+EDGE_DIR = os.path.join(ROOT_DIR, "edge-agent")
+PRIVATE_KEY_PATH = os.path.join(ROOT_DIR, "private_key.pem")
+
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 
 @app.route("/")
 def home():
     return jsonify({"message": "OTA Mock Server Running", "status": "ok"})
+
+
+@app.route("/admin")
+def admin_dashboard():
+    return render_template("admin.html")
+
+
+@app.route("/admin/deploy", methods=["POST"])
+def admin_deploy():
+    if "file" not in request.files:
+        return jsonify({"error": "No file uploaded"}), 400
+        
+    version = request.form.get("version", "").strip()
+    if not version:
+        return jsonify({"error": "Version is required"}), 400
+        
+    file = request.files["file"]
+    if file.filename == "":
+        return jsonify({"error": "Empty filename"}), 400
+        
+    # Ensure standard filename based on version
+    filename = f"{version}.bin" if not version.endswith(".bin") else version
+    sig_filename = filename.replace(".bin", ".sig")
+    
+    save_path = os.path.join(UPLOAD_FOLDER, filename)
+    sig_path = os.path.join(UPLOAD_FOLDER, sig_filename)
+    
+    file.save(save_path)
+    
+    # Sign the firmware automatically using signer.py
+    try:
+        subprocess.run(
+            [
+                sys.executable, "signer.py",
+                "-k", PRIVATE_KEY_PATH,
+                "-f", save_path,
+                "-o", sig_path
+            ],
+            cwd=EDGE_DIR,
+            check=True,
+            capture_output=True,
+            text=True
+        )
+    except subprocess.CalledProcessError as e:
+        # If signing fails, clean up the uploaded bin
+        if os.path.exists(save_path):
+            os.remove(save_path)
+        return jsonify({"error": f"Failed to sign firmware: {e.stderr}"}), 500
+
+    return jsonify({
+        "status": "success",
+        "message": f"Firmware {version} successfully signed and deployed!"
+    })
 
 
 @app.route("/upload", methods=["POST"])
@@ -42,7 +100,7 @@ def upload_file():
         if computed != expected_hash:
             os.remove(save_path)
             return jsonify({
-                "error": "Hash mismatch — upload rejected",
+                "error": "Hash mismatch -- upload rejected",
                 "expected": expected_hash,
                 "computed": computed
             }), 400

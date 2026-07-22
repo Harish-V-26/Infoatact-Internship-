@@ -141,7 +141,7 @@ def test_one_byte_tamper_rejection(tmp_dir):
     Takes a VALID signed firmware bundle, flips exactly ONE byte in
     firmware.bin (simulating an attacker tampering in transit), then
     proves the verification chain catches it and logs a CRITICAL
-    incident via edge-agent/incident_logger.py — never partially applies.
+    incident via edge-agent/incident_logger.py -- never partially applies.
     """
     print("\n[5] One-Byte Tamper Test (Issue #26)")
     try:

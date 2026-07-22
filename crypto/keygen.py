@@ -1,7 +1,7 @@
-# Week 1 — Key Generation Script
+# Week 1 -- Key Generation Script
 # Generates RSA-2048 asymmetric key pair
 # Private key must NEVER be committed to GitHub (blocked by .gitignore)
-# Public key is safe to commit — edge agent uses it for verification
+# Public key is safe to commit -- edge agent uses it for verification
 
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.primitives import serialization
