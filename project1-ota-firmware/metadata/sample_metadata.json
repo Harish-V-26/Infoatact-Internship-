@@ -1,0 +1,9 @@
+{
+  "firmware_version": "1.0.0",
+  "build_timestamp": "2026-06-09T00:00:00Z",
+  "sha256_hash": "<computed_by_hasher.py>",
+  "signature": "<base64_encoded_signature_from_sign_helper.py>",
+  "binary_url": "http://localhost:5000/firmware/firmware_v1.0.0.bin",
+  "minimum_version": "0.0.0",
+  "notes": "Initial firmware release — Week 1 placeholder"
+}

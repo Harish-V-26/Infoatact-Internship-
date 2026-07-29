@@ -1,0 +1,11 @@
+{
+  "firmware_version": "1.0.0",
+  "build_timestamp": "2026-06-09T00:00:00Z",
+  "algorithm": "RSA",
+  "sha256_hash": "957a431375997323d24f269fba61ffe8ec212cd9c55e140b4dadce944e329a52",
+  "signature": "<base64_encoded_signature>",
+  "public_key": "crypto/public_key.pem",
+  "binary_url": "http://localhost:5000/firmware/firmware_v1.0.0.bin",
+  "minimum_version": "0.0.0",
+  "notes": "Initial firmware release"
+}
