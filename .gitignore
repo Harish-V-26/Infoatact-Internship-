@@ -28,18 +28,11 @@ firmware.sig
 *.sig
 *.hash
 
-# Private keys — NEVER commit these
-*.pem
-*.key
-private_key*
-keys/
-
 # Python
 __pycache__/
 *.pyc
 *.pyo
 .env
-<<<<<<< HEAD
 .env.*
 venv/
 .venv/
@@ -57,7 +50,6 @@ logs/
 firmware.bin
 dist/
 build/
-=======
 
 # Uploads and logs
 server/uploads/*
@@ -69,4 +61,3 @@ edge-agent/state.json
 !server/uploads/.gitkeep
 !edge-agent/logs/.gitkeep
 !edge-agent/downloads/.gitkeep
->>>>>>> origin/main
