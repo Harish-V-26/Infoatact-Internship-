@@ -36,6 +36,8 @@ import re
 
 import spacy
 
+from vault import create_or_get_token
+
 logger = logging.getLogger(__name__)
 
 _nlp = spacy.load("en_core_web_sm")
@@ -48,17 +50,25 @@ KNOWN_PLACES = {
 
 
 def mask_structured_pii(text: str) -> str:
-    text = re.sub(r"[\w.-]+@[\w.-]+\.\w+", "[EMAIL_REDACTED]", text)
+    text = re.sub(
+        r"[\w.-]+@[\w.-]+\.\w+",
+        lambda match: create_or_get_token("EMAIL", match.group(0)),
+        text,
+    )
     phone_pattern = r"(?:\b\d{3}[-.\s]??\d{3}[-.\s]??\d{4}\b|\(\d{3}\)\s*\d{3}[-.\s]?\d{4})"
-    text = re.sub(phone_pattern, "[PHONE_REDACTED]", text)
+    text = re.sub(
+        phone_pattern,
+        lambda match: create_or_get_token("PHONE", match.group(0)),
+        text,
+    )
     text = re.sub(
         r"\b(?:\d{1,2}[-/]\d{1,2}[-/]\d{2,4})|(?:\d{4}[-/]\d{1,2}[-/]\d{1,2})\b",
-        "[DATE_REDACTED]",
+        lambda match: create_or_get_token("DATE", match.group(0)),
         text,
     )
     text = re.sub(
         r"\b[A-Z][a-zA-Z\s]+(?:Hospital|Clinic|Medical Center|Healthcare|Dr\.|Street|Drive|Road)\b",
-        "[HOSPITAL_ADDRESS]",
+        lambda match: create_or_get_token("HOSPITAL_ADDRESS", match.group(0)),
         text,
     )
     return text
@@ -74,9 +84,10 @@ def mask_person_entities(text: str) -> str:
             if ent.text in KNOWN_PLACES or "Drive" in ent.text or "Hospital" in ent.text:
                 continue
             if ent.label_ == "PERSON":
-                final_text = final_text.replace(ent.text, "[PATIENT_NAME]")
+                token = create_or_get_token("PERSON", ent.text)
             else:
-                final_text = final_text.replace(ent.text, "[LOCATION_REDACTED]")
+                token = create_or_get_token("LOCATION", ent.text)
+            final_text = final_text.replace(ent.text, token)
     return final_text
 
 
