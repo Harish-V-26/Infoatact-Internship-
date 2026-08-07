@@ -48,6 +48,12 @@ KNOWN_PLACES = {
     "Berlin", "Tokyo", "Delhi", "Mumbai",
 }
 
+# Matches vault tokens like EMAIL_0001, PERSON_0002, HOSPITAL_ADDRESS_0001.
+# Used to stop the NLP pass from re-tokenizing text the regex pass already
+# tokenized (see issue #72 - a generated token can look like a proper noun
+# to spaCy and get wrapped again, corrupting reverse mapping).
+_VAULT_TOKEN_PATTERN = re.compile(r"^[A-Z][A-Z0-9_]*_\d{4}$")
+
 
 def mask_structured_pii(text: str) -> str:
     text = re.sub(
@@ -79,6 +85,10 @@ def mask_person_entities(text: str) -> str:
     final_text = text
     for ent in doc.ents:
         if ent.label_ in {"PERSON", "GPE", "LOC", "FAC"}:
+            if _VAULT_TOKEN_PATTERN.match(ent.text):
+                # Already a vault token from the regex pass - don't
+                # re-tokenize it, or reverse mapping breaks (#72).
+                continue
             if ent.text.lower() in MEDICAL_EPONYMS:
                 continue
             if ent.text in KNOWN_PLACES or "Drive" in ent.text or "Hospital" in ent.text:
