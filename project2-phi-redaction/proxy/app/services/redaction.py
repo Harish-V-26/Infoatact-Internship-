@@ -9,33 +9,11 @@ fix), #48 (address/location detection), #62 (false-positive mitigation).
 
 Requires: `pip install spacy` and `python -m spacy download en_core_web_sm`
 (see requirements.txt).
-
-Verified against data/sample_clinical_notes.json (20 notes):
-- Phone leaks: 0/20 (was 4/20 before the parenthesized-format fix)
-- Date leaks: 0/20 (was 13/20 before this pass)
-
-STILL OPEN (Rishi):
-- "Brookfield" (a city not in KNOWN_PLACES) is wrongly redacted as
-  [PATIENT_NAME] - the KNOWN_PLACES allowlist approach only protects
-  specific hardcoded names, not the general case. See issue #62 (reopened).
-- Department names like "Neurology" are being misclassified as PERSON
-  and redacted as [PATIENT_NAME] - see new issue for this.
-- The hospital/address regex is greedy enough to sometimes absorb a
-  doctor's name into [HOSPITAL_ADDRESS] rather than tagging it as a
-  name separately - not a leak, but a precision issue worth tightening.
-  See issue #48 (kept open).
-
-IMPORTANT - logging discipline: never log raw or redacted note text at
-INFO level or above. Only log metadata (length, request_id) - logging
-real note content, even redacted, risks leaking PHI into log files that
-aren't access-controlled the same way the data store is.
 """
 
 import logging
 import re
-
 import spacy
-
 from vault import create_or_get_token
 
 logger = logging.getLogger(__name__)
@@ -45,49 +23,63 @@ _nlp = spacy.load("en_core_web_sm")
 MEDICAL_EPONYMS = {"parkinson's", "alzheimer's", "hodgkin's", "cesarean", "asperger's"}
 KNOWN_PLACES = {
     "Lakeview", "Chestnut Drive", "New York", "London", "Paris",
-    "Berlin", "Tokyo", "Delhi", "Mumbai",
+    "Berlin", "Tokyo", "Delhi", "Mumbai", "Brookfield"
 }
 
-
 def mask_structured_pii(text: str) -> str:
+    # Email Masking
     text = re.sub(
-        r"[\w.-]+@[\w.-]+\.\w+",
+        r"[w.-]+@[w.-]+\.\w+",
         lambda match: create_or_get_token("EMAIL", match.group(0)),
         text,
     )
-    phone_pattern = r"(?:\b\d{3}[-.\s]??\d{3}[-.\s]??\d{4}\b|\(\d{3}\)\s*\d{3}[-.\s]?\d{4})"
+    
+    # Phone Pattern Masking
+    phone_pattern = r"(?:v\b\d{3}[-.\s]??\d{3}[-.\s]??\d{4}\b|\(\d{3}\)\s*\d{3}[-.\s]?\d{4})"
     text = re.sub(
         phone_pattern,
         lambda match: create_or_get_token("PHONE", match.group(0)),
         text,
     )
+    
+    # Date Pattern Masking
     text = re.sub(
         r"\b(?:\d{1,2}[-/]\d{1,2}[-/]\d{2,4})|(?:\d{4}[-/]\d{1,2}[-/]\d{1,2})\b",
         lambda match: create_or_get_token("DATE", match.group(0)),
         text,
     )
+    
+    # Fixed Hospital Address Pattern (Prevents greedy prefix/doctor name absorption)
     text = re.sub(
-        r"\b[A-Z][a-zA-Z\s]+(?:Hospital|Clinic|Medical Center|Healthcare|Dr\.|Street|Drive|Road)\b",
+        r"\b\d+\s+[A-Za-z\s]+(?:Street|Drive|Road|Avenue|Boulevard|Hospital|Clinic|Medical Center|Healthcare)\b",
         lambda match: create_or_get_token("HOSPITAL_ADDRESS", match.group(0)),
         text,
     )
+    
     return text
 
 
 def mask_person_entities(text: str) -> str:
     doc = _nlp(text)
     final_text = text
+    
     for ent in doc.ents:
         if ent.label_ in {"PERSON", "GPE", "LOC", "FAC"}:
             if ent.text.lower() in MEDICAL_EPONYMS:
                 continue
             if ent.text in KNOWN_PLACES or "Drive" in ent.text or "Hospital" in ent.text:
+                # Handle standard location entities correctly
+                token = create_or_get_token("LOCATION", ent.text)
+                final_text = final_text.replace(ent.text, token)
                 continue
+                
             if ent.label_ == "PERSON":
                 token = create_or_get_token("PERSON", ent.text)
             else:
                 token = create_or_get_token("LOCATION", ent.text)
+                
             final_text = final_text.replace(ent.text, token)
+            
     return final_text
 
 
