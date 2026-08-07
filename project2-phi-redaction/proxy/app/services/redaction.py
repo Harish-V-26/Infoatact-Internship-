@@ -5,7 +5,8 @@ This runs BEFORE any text leaves the proxy toward the external LLM.
 
 Regex (email/phone/date) and NLP entity detection (patient names,
 locations) built by Rishi - issues #44 (date masking), #61 (phone regex
-fix), #48 (address/location detection), #62 (false-positive mitigation).
+fix), #48 (address/location detection), #62 (false-positive mitigation),
+#68 (department name misclassifications).
 
 Requires: `pip install spacy` and `python -m spacy download en_core_web_sm`
 (see requirements.txt).
@@ -21,15 +22,22 @@ logger = logging.getLogger(__name__)
 _nlp = spacy.load("en_core_web_sm")
 
 MEDICAL_EPONYMS = {"parkinson's", "alzheimer's", "hodgkin's", "cesarean", "asperger's"}
+
+MEDICAL_DEPARTMENTS = {
+    "Neurology", "Cardiology", "Pediatrics", "Radiology", 
+    "Orthopedics", "Oncology", "Dermatology", "Psychiatry",
+    "Gastroenterology", "Endocrinology", "Urology", "Hematology"
+}
+
 KNOWN_PLACES = {
     "Lakeview", "Chestnut Drive", "New York", "London", "Paris",
     "Berlin", "Tokyo", "Delhi", "Mumbai", "Brookfield"
 }
 
 def mask_structured_pii(text: str) -> str:
-    # Email Masking
+    # Fixed Email Masking (added backslash to \w)
     text = re.sub(
-        r"[w.-]+@[w.-]+\.\w+",
+        r"[\w.-]+@[\w.-]+\.\w+",
         lambda match: create_or_get_token("EMAIL", match.group(0)),
         text,
     )
@@ -65,8 +73,14 @@ def mask_person_entities(text: str) -> str:
     
     for ent in doc.ents:
         if ent.label_ in {"PERSON", "GPE", "LOC", "FAC"}:
+            # Skip medical eponyms
             if ent.text.lower() in MEDICAL_EPONYMS:
                 continue
+            
+            # Skip medical departments to fix issue #68
+            if ent.text in MEDICAL_DEPARTMENTS:
+                continue
+                
             if ent.text in KNOWN_PLACES or "Drive" in ent.text or "Hospital" in ent.text:
                 # Handle standard location entities correctly
                 token = create_or_get_token("LOCATION", ent.text)
