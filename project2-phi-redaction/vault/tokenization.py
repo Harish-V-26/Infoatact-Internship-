@@ -29,8 +29,14 @@ class TokenizationVault:
     """A session-scoped reversible pseudonymization engine."""
 
     def __init__(self) -> None:
-        self.redis_client = connect_to_redis()
+        self.redis_client = None
+        self._redis_tried = False
         self.reset_session()
+
+    def _ensure_redis_client(self) -> None:
+        if self.redis_client is None and not self._redis_tried:
+            self.redis_client = connect_to_redis()
+            self._redis_tried = True
 
     def _normalize_entity_type(self, entity_type: str) -> str:
         """Normalize entity types into a safe uppercase token prefix."""
@@ -38,6 +44,7 @@ class TokenizationVault:
         return normalized or "UNKNOWN"
 
     def _get_redis_token(self, normalized_type: str, original_value: str) -> Optional[str]:
+        self._ensure_redis_client()
         if not self.redis_client:
             return None
         try:
@@ -48,6 +55,7 @@ class TokenizationVault:
             return None
 
     def _get_redis_original(self, token: str) -> Optional[str]:
+        self._ensure_redis_client()
         if not self.redis_client:
             return None
         try:
@@ -58,6 +66,7 @@ class TokenizationVault:
             return None
 
     def _increment_redis_counter(self, normalized_type: str) -> Optional[int]:
+        self._ensure_redis_client()
         if not self.redis_client:
             return None
         try:
@@ -68,6 +77,7 @@ class TokenizationVault:
             return None
 
     def _save_redis_mapping(self, normalized_type: str, original_value: str, token: str) -> None:
+        self._ensure_redis_client()
         if not self.redis_client:
             return
         try:
