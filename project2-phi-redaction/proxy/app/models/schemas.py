@@ -7,8 +7,8 @@ class NoteRequest(BaseModel):
     text: str = Field(..., min_length=1, max_length=settings.max_note_length)
 
 
-class SummarizeResponse(BaseModel):
-    summary: str
+class RedactResponse(BaseModel):
+    redacted_text: str
     request_id: str
 
 
