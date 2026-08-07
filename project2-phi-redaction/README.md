@@ -9,6 +9,9 @@ This folder contains all work for Project 2 (Month 2), per the Infotact 4-week r
 - `data/` - Synthetic clinical note samples only (no real PHI)
 - `docs/` - Architecture, security, and risk reports
 
+## Architecture Documentation
+- Tokenization and pseudonymization architecture: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+
 ## Timeline
 20 days total, daily commits required (no gaps), per Final Review rules.
 
