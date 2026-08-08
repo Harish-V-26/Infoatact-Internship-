@@ -1,23 +1,46 @@
-# Project 2: HealthTech - Automated PHI/PII Redaction Pipeline for LLMs
+# Project 2: HealthTech — PHI/PII De-identification Pipeline
 
-This folder contains all work for Project 2 (Month 2), per the Infotact 4-week roadmap.
+**Infotact Internship — Cybersecurity Track — Month 2**
+**Team:** Harish (Team Lead), Jagadesh, Sourish, Rishi
 
-## Structure (to be built out)
-- `proxy/` - FastAPI proxy service (Jagadesh)
-- `nlp/` - NLP entity detection layer (Rishi)
-- `vault/` - Tokenization / pseudonymization engine (Sourish)
-- `data/` - Synthetic clinical note samples only (no real PHI)
-- `docs/` - Architecture, security, and risk reports
+## Overview
 
-## Architecture Documentation
-- Tokenization and pseudonymization architecture: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+A standalone service that de-identifies clinical notes: it detects and reversibly tokenizes PHI/PII (names, dates, phone numbers, emails, addresses) so the redacted text can be safely used elsewhere, with the ability to restore original values later for an authorized consumer. It does **not** call any external LLM — that scope was deliberately removed to keep this a provider-agnostic, standalone component.
 
-## Timeline
-20 days total, daily commits required (no gaps), per Final Review rules.
+## Folder Structure
 
-| Days | Phase |
-|---|---|
-| 1-5 | Week 1: FastAPI proxy + regex PII baseline |
-| 6-10 | Week 2: NLP entity recognition |
-| 11-15 | Week 3: Pseudonymization + Redis vault |
-| 16-20 | Week 4: Optimization, deployment, final report |
+| Folder | Purpose | Owner |
+|---|---|---|
+| `proxy/` | FastAPI service — `POST /proxy/redact` takes a raw note, returns it de-identified | Harish, Jagadesh |
+| `proxy/app/services/redaction.py` | Regex (phone/email/date) + spaCy NLP (names/locations) de-identification logic | Rishi |
+| `vault/` | Reversible tokenization engine — Redis-backed, with in-memory fallback | Sourish |
+| `data/` | Synthetic clinical note samples used for testing — no real PHI | Harish |
+| `tests/` | Unit + integration tests for the vault and reverse-mapping | Sourish |
+| `docs/` | Architecture and risk-report documentation | Harish, Sourish |
+
+## Quick Start
+
+```bash
+cd proxy
+cp .env.example .env
+pip install -r requirements.txt
+python -m spacy download en_core_web_sm
+uvicorn app.main:app --reload
+```
+
+Test it:
+```bash
+curl -X POST http://localhost:8000/proxy/redact \
+  -H "Content-Type: application/json" \
+  -d '{"text": "Patient John Doe, DOB 1985-03-14, call 555-123-4567."}'
+```
+
+## Status
+
+Core de-identification pipeline is functionally complete and verified: 0 PHI leaks (phone/email/date) and 0 reverse-mapping failures across the full synthetic test dataset, confirmed via automated round-trip testing. See [`docs/RISK_REPORT.md`](docs/RISK_REPORT.md) for the detailed HIPAA Safe Harbor alignment assessment.
+
+**Remaining work:** Docker deployment and formal latency benchmarking under load (not correctness issues — the pipeline works, it just isn't containerized yet).
+
+## Architecture
+
+See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the tokenization/pseudonymization design.
