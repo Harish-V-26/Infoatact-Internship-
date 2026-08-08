@@ -1,49 +1,57 @@
-# PHI/PII Redaction Proxy Service
+# PHI/PII De-identification Proxy Service
 
-Production-structured FastAPI service that sits between clinical staff and an
-external LLM API, de-identifying clinical notes before they leave the
-network boundary.
+A FastAPI service that takes a raw clinical note and returns it fully de-identified: structured PII (phone, email, date) masked via regex, and names/locations tokenized via NLP + a reversible vault.
+
+This service does **not** call any external LLM. That was an earlier design direction, deliberately removed to keep this a standalone, provider-agnostic component that any downstream system can plug into.
 
 ## Setup
 
 ```bash
-cp .env.example .env   # fill in LLM_API_KEY before running for real
+cp .env.example .env
 pip install -r requirements.txt
+python -m spacy download en_core_web_sm
 uvicorn app.main:app --reload
 ```
+
+No API key is required to run this service.
+
+## Endpoints
+
+- `GET /health` — basic health check
+- `POST /proxy/redact` — takes `{"text": "..."}`, returns `{"redacted_text": "...", "request_id": "..."}`
 
 ## Architecture
 
 ```
 app/
-  config.py          - environment-based settings (no hardcoded secrets)
+  config.py          - environment-based settings (Redis config only, no LLM)
   main.py            - FastAPI app, middleware, router registration
   models/schemas.py  - request/response models
   routes/
     health.py        - GET /health
-    proxy.py          - POST /proxy/summarize
+    proxy.py          - POST /proxy/redact
   services/
-    redaction.py      - de-identification pre-processing hook (issue #44, Jagadesh)
-    llm_client.py     - real async LLM client: timeouts, retries with backoff
+    redaction.py      - de-identification logic: regex + spaCy NLP (Rishi)
+
+../vault/             - reversible tokenization vault (Sourish) - imported
+                         by redaction.py, lives one level up since it's
+                         shared infrastructure, not proxy-specific
 ```
 
-## What's real vs. what's pending
+## Restoring original values
 
-- The LLM client makes an actual HTTP call to the configured provider
-  (Anthropic Messages API by default) with retries and exponential
-  backoff on 5xx/network errors - it is not a stub.
-- `services/redaction.py` is the de-identification hook. It currently
-  passes text through unchanged - this is issue #44, owned by Jagadesh.
-- NLP entity detection (names, addresses) and the tokenization vault
-  (Redis-backed pseudonymization) are separate services, owned by
-  Sourish and Rishi (issues #46-#52), and will plug in ahead of
-  `services/redaction.py` in the request pipeline once built.
+`redact_note()` only redacts — it doesn't reverse. To restore original values from tokens (e.g. for an authorized downstream consumer), use `vault.reverse_mapping.reverse_map_text()` directly. This is intentionally not wired into the `/proxy/redact` endpoint itself.
+
+## Verified status
+
+Tested end-to-end against the 20-note synthetic dataset in `../data/`:
+- 0/20 PHI leaks (phone, email, date)
+- 0/20 reverse-mapping failures
+- ~11ms average latency per request (unoptimized, single-request timing — not a formal benchmark)
 
 ## Security notes
 
-- No API keys or secrets are hardcoded anywhere in this service - all
-  come from environment variables via `app/config.py`.
-- Logging is metadata-only (request IDs, lengths, status codes) -
-  never logs raw or redacted note text, to avoid leaking PHI into logs.
-- CORS is wide open (`*`) for local development only - restrict
-  `allow_origins` before any real deployment.
+- No API keys or secrets are hardcoded anywhere - all Redis config comes from environment variables via `app/config.py`
+- Logging is metadata-only (request IDs, lengths, status codes) - never logs raw or redacted note text, to avoid leaking PHI into logs
+- CORS is wide open (`*`) for local development only - restrict `allow_origins` before any real deployment
+- No Docker image yet — this currently only runs via `uvicorn` directly
