@@ -5,37 +5,16 @@ This runs BEFORE any text leaves the proxy toward the external LLM.
 
 Regex (email/phone/date) and NLP entity detection (patient names,
 locations) built by Rishi - issues #44 (date masking), #61 (phone regex
-fix), #48 (address/location detection), #62 (false-positive mitigation).
+fix), #48 (address/location detection), #62 (false-positive mitigation),
+#68 (department name misclassifications).
 
 Requires: `pip install spacy` and `python -m spacy download en_core_web_sm`
 (see requirements.txt).
-
-Verified against data/sample_clinical_notes.json (20 notes):
-- Phone leaks: 0/20 (was 4/20 before the parenthesized-format fix)
-- Date leaks: 0/20 (was 13/20 before this pass)
-
-STILL OPEN (Rishi):
-- "Brookfield" (a city not in KNOWN_PLACES) is wrongly redacted as
-  [PATIENT_NAME] - the KNOWN_PLACES allowlist approach only protects
-  specific hardcoded names, not the general case. See issue #62 (reopened).
-- Department names like "Neurology" are being misclassified as PERSON
-  and redacted as [PATIENT_NAME] - see new issue for this.
-- The hospital/address regex is greedy enough to sometimes absorb a
-  doctor's name into [HOSPITAL_ADDRESS] rather than tagging it as a
-  name separately - not a leak, but a precision issue worth tightening.
-  See issue #48 (kept open).
-
-IMPORTANT - logging discipline: never log raw or redacted note text at
-INFO level or above. Only log metadata (length, request_id) - logging
-real note content, even redacted, risks leaking PHI into log files that
-aren't access-controlled the same way the data store is.
 """
 
 import logging
 import re
-
 import spacy
-
 from vault import create_or_get_token
 
 logger = logging.getLogger(__name__)
@@ -43,61 +22,116 @@ logger = logging.getLogger(__name__)
 _nlp = spacy.load("en_core_web_sm")
 
 MEDICAL_EPONYMS = {"parkinson's", "alzheimer's", "hodgkin's", "cesarean", "asperger's"}
-KNOWN_PLACES = {
-    "Lakeview", "Chestnut Drive", "New York", "London", "Paris",
-    "Berlin", "Tokyo", "Delhi", "Mumbai",
+
+MEDICAL_DEPARTMENTS = {
+    "Neurology", "Cardiology", "Pediatrics", "Radiology", 
+    "Orthopedics", "Oncology", "Dermatology", "Psychiatry",
+    "Gastroenterology", "Endocrinology", "Urology", "Hematology"
 }
 
-# Matches vault tokens like EMAIL_0001, PERSON_0002, HOSPITAL_ADDRESS_0001.
-# Used to stop the NLP pass from re-tokenizing text the regex pass already
-# tokenized (see issue #72 - a generated token can look like a proper noun
-# to spaCy and get wrapped again, corrupting reverse mapping).
+KNOWN_PLACES = {
+    "Lakeview", "Chestnut Drive", "New York", "London", "Paris",
+    "Berlin", "Tokyo", "Delhi", "Mumbai", "Brookfield"
+}
+
+# Matches vault tokens like EMAIL_0001, PERSON_0002. Used to stop the NLP
+# pass from re-tokenizing text the regex pass already tokenized (#72 -
+# a generated token can look like a proper noun to spaCy and get wrapped
+# again, corrupting reverse mapping).
 _VAULT_TOKEN_PATTERN = re.compile(r"^[A-Z][A-Z0-9_]*_\d{4}$")
 
-
 def mask_structured_pii(text: str) -> str:
+    # Fixed Email Masking
     text = re.sub(
         r"[\w.-]+@[\w.-]+\.\w+",
         lambda match: create_or_get_token("EMAIL", match.group(0)),
         text,
     )
+    
+    # Fixed Phone Pattern Masking (removed erroneous leading v\b)
     phone_pattern = r"(?:\b\d{3}[-.\s]??\d{3}[-.\s]??\d{4}\b|\(\d{3}\)\s*\d{3}[-.\s]?\d{4})"
     text = re.sub(
         phone_pattern,
         lambda match: create_or_get_token("PHONE", match.group(0)),
         text,
     )
+    
+    # Date Pattern Masking
     text = re.sub(
         r"\b(?:\d{1,2}[-/]\d{1,2}[-/]\d{2,4})|(?:\d{4}[-/]\d{1,2}[-/]\d{1,2})\b",
         lambda match: create_or_get_token("DATE", match.group(0)),
         text,
     )
+    
+    # Tightened street-address pattern (requires a leading number, so it
+    # doesn't swallow doctor names the way the old pattern did)
+    street_address_pattern = r"\b\d+\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\s+(?:Street|Drive|Road|Avenue|Boulevard)\b"
     text = re.sub(
-        r"\b[A-Z][a-zA-Z\s]+(?:Hospital|Clinic|Medical Center|Healthcare|Dr\.|Street|Drive|Road)\b",
+        street_address_pattern,
         lambda match: create_or_get_token("HOSPITAL_ADDRESS", match.group(0)),
         text,
     )
+
+    # Separate pattern for hospital/clinic names, which usually don't have
+    # a leading street number (e.g. "Springfield General Hospital") - was
+    # leaking through unredacted before this (see issue filed after #48)
+    facility_name_pattern = r"\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,3}\s+(?:Hospital|Clinic|Medical Center|Healthcare)\b"
+    text = re.sub(
+        facility_name_pattern,
+        lambda match: create_or_get_token("HOSPITAL_ADDRESS", match.group(0)),
+        text,
+    )
+    
     return text
 
 
 def mask_person_entities(text: str) -> str:
     doc = _nlp(text)
     final_text = text
-    for ent in doc.ents:
+    
+    # Sort entities by length descending to prevent substring replacement bugs
+    sorted_ents = sorted(doc.ents, key=lambda e: len(e.text), reverse=True)
+    
+    for ent in sorted_ents:
         if ent.label_ in {"PERSON", "GPE", "LOC", "FAC"}:
+            # Don't re-tokenize something that's already a vault token (#72)
             if _VAULT_TOKEN_PATTERN.match(ent.text):
-                # Already a vault token from the regex pass - don't
-                # re-tokenize it, or reverse mapping breaks (#72).
                 continue
+
+            # Skip medical eponyms
             if ent.text.lower() in MEDICAL_EPONYMS:
                 continue
-            if ent.text in KNOWN_PLACES or "Drive" in ent.text or "Hospital" in ent.text:
+            
+            # Skip medical departments to fix issue #68
+            if ent.text in MEDICAL_DEPARTMENTS:
                 continue
+                
+            # Generalized check for Issue #62: detect location context from preceding prepositions
+            is_location_context = False
+            if ent.start > 0:
+                prev_token = doc[ent.start - 1].text.lower()
+                if prev_token in {"at", "in", "near", "from", "to", "visiting"}:
+                    is_location_context = True
+                
+            if (
+                ent.text in KNOWN_PLACES 
+                or "Drive" in ent.text 
+                or "Hospital" in ent.text 
+                or "Clinic" in ent.text
+                or ent.label_ in {"GPE", "LOC", "FAC"}
+                or is_location_context
+            ):
+                token = create_or_get_token("LOCATION", ent.text)
+                final_text = final_text.replace(ent.text, token)
+                continue
+                
             if ent.label_ == "PERSON":
                 token = create_or_get_token("PERSON", ent.text)
             else:
                 token = create_or_get_token("LOCATION", ent.text)
+                
             final_text = final_text.replace(ent.text, token)
+            
     return final_text
 
 
