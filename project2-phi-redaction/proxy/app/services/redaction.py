@@ -35,15 +35,15 @@ KNOWN_PLACES = {
 }
 
 def mask_structured_pii(text: str) -> str:
-    # Fixed Email Masking (added backslash to \w)
+    # Fixed Email Masking
     text = re.sub(
         r"[\w.-]+@[\w.-]+\.\w+",
         lambda match: create_or_get_token("EMAIL", match.group(0)),
         text,
     )
     
-    # Phone Pattern Masking
-    phone_pattern = r"(?:v\b\d{3}[-.\s]??\d{3}[-.\s]??\d{4}\b|\(\d{3}\)\s*\d{3}[-.\s]?\d{4})"
+    # Fixed Phone Pattern Masking (removed erroneous leading v\b)
+    phone_pattern = r"(?:\b\d{3}[-.\s]??\d{3}[-.\s]??\d{4}\b|\(\d{3}\)\s*\d{3}[-.\s]?\d{4})"
     text = re.sub(
         phone_pattern,
         lambda match: create_or_get_token("PHONE", match.group(0)),
@@ -57,9 +57,10 @@ def mask_structured_pii(text: str) -> str:
         text,
     )
     
-    # Fixed Hospital Address Pattern (Prevents greedy prefix/doctor name absorption)
+    # Tightened Hospital/Address Pattern (Uses strict word constraints to prevent swallowing doctor names)
+    hospital_address_pattern = r"\b\d+\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\s+(?:Street|Drive|Road|Avenue|Boulevard|Hospital|Clinic|Medical Center|Healthcare)\b"
     text = re.sub(
-        r"\b\d+\s+[A-Za-z\s]+(?:Street|Drive|Road|Avenue|Boulevard|Hospital|Clinic|Medical Center|Healthcare)\b",
+        hospital_address_pattern,
         lambda match: create_or_get_token("HOSPITAL_ADDRESS", match.group(0)),
         text,
     )
@@ -71,7 +72,10 @@ def mask_person_entities(text: str) -> str:
     doc = _nlp(text)
     final_text = text
     
-    for ent in doc.ents:
+    # Sort entities by length descending to prevent substring replacement bugs
+    sorted_ents = sorted(doc.ents, key=lambda e: len(e.text), reverse=True)
+    
+    for ent in sorted_ents:
         if ent.label_ in {"PERSON", "GPE", "LOC", "FAC"}:
             # Skip medical eponyms
             if ent.text.lower() in MEDICAL_EPONYMS:
@@ -81,8 +85,21 @@ def mask_person_entities(text: str) -> str:
             if ent.text in MEDICAL_DEPARTMENTS:
                 continue
                 
-            if ent.text in KNOWN_PLACES or "Drive" in ent.text or "Hospital" in ent.text:
-                # Handle standard location entities correctly
+            # Generalized check for Issue #62: detect location context from preceding prepositions
+            is_location_context = False
+            if ent.start > 0:
+                prev_token = doc[ent.start - 1].text.lower()
+                if prev_token in {"at", "in", "near", "from", "to", "visiting"}:
+                    is_location_context = True
+                
+            if (
+                ent.text in KNOWN_PLACES 
+                or "Drive" in ent.text 
+                or "Hospital" in ent.text 
+                or "Clinic" in ent.text
+                or ent.label_ in {"GPE", "LOC", "FAC"}
+                or is_location_context
+            ):
                 token = create_or_get_token("LOCATION", ent.text)
                 final_text = final_text.replace(ent.text, token)
                 continue
