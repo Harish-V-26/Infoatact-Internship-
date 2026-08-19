@@ -25,8 +25,11 @@ cd proxy
 cp .env.example .env
 pip install -r requirements.txt
 python -m spacy download en_core_web_sm
-uvicorn app.main:app --reload
+PYTHONPATH=.. uvicorn app.main:app --reload
 ```
+
+> `PYTHONPATH=..` is required so `vault/` (one level up, shared infrastructure)
+> is importable — see `proxy/README.md` for details.
 
 Test it:
 ```bash
