@@ -18,15 +18,32 @@ A standalone service that de-identifies clinical notes: it detects and reversibl
 | `tests/` | Unit + integration tests for the vault and reverse-mapping | Sourish |
 | `docs/` | Architecture and risk-report documentation | Harish, Sourish |
 
-## Quick Start
+## Quick Start (Docker — recommended, one command)
+
+```bash
+cd project2-phi-redaction
+docker compose up --build
+```
+
+This starts Redis and the proxy together. Test it:
+```bash
+curl -X POST http://localhost:8000/proxy/redact \
+  -H "Content-Type: application/json" \
+  -d '{"text": "Patient John Doe, DOB 1985-03-14, call 555-123-4567."}'
+```
+
+## Quick Start (local, no Docker)
 
 ```bash
 cd proxy
 cp .env.example .env
 pip install -r requirements.txt
 python -m spacy download en_core_web_sm
-uvicorn app.main:app --reload
+PYTHONPATH=.. uvicorn app.main:app --reload
 ```
+
+> `PYTHONPATH=..` is required so `vault/` (one level up, shared infrastructure)
+> is importable — see `proxy/README.md` for details.
 
 Test it:
 ```bash
@@ -37,9 +54,11 @@ curl -X POST http://localhost:8000/proxy/redact \
 
 ## Status
 
-Core de-identification pipeline is functionally complete and verified: 0 PHI leaks (phone/email/date) and 0 reverse-mapping failures across the full synthetic test dataset, confirmed via automated round-trip testing. See [`docs/RISK_REPORT.md`](docs/RISK_REPORT.md) for the detailed HIPAA Safe Harbor alignment assessment.
+Core de-identification pipeline is functionally complete and verified: 0 PHI leaks (phone/email/date) and 0 reverse-mapping failures across the full synthetic test dataset, confirmed via automated round-trip testing. See [`docs/RISK_REPORT.md`](docs/RISK_REPORT.md) for the detailed HIPAA Safe Harbor alignment assessment, and [`docs/INTEGRATION_TEST_REPORT.md`](docs/INTEGRATION_TEST_REPORT.md) for the final end-to-end integration test results (#57).
 
-**Remaining work:** Docker deployment and formal latency benchmarking under load (not correctness issues — the pipeline works, it just isn't containerized yet).
+Containerized via Docker Compose (#55) — see Quick Start above.
+
+**Remaining work:** formal latency benchmarking under sustained load (not a correctness issue — the pipeline works and is verified, just not load-tested).
 
 ## Architecture
 
