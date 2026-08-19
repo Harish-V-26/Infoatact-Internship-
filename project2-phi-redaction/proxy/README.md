@@ -10,10 +10,17 @@ This service does **not** call any external LLM. That was an earlier design dire
 cp .env.example .env
 pip install -r requirements.txt
 python -m spacy download en_core_web_sm
-uvicorn app.main:app --reload
+PYTHONPATH=.. uvicorn app.main:app --reload
 ```
 
 No API key is required to run this service.
+
+> **Note:** `PYTHONPATH=..` is required because `services/redaction.py` imports
+> the `vault` package, which intentionally lives one level up at
+> `project2-phi-redaction/vault/` (see Architecture below) since it's shared
+> infrastructure, not proxy-specific. Running `uvicorn app.main:app` from
+> inside `proxy/` without `PYTHONPATH=..` will fail with
+> `ModuleNotFoundError: No module named 'vault'`.
 
 ## Endpoints
 
